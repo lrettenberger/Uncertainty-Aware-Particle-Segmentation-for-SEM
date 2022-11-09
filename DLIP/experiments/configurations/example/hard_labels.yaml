@@ -1,0 +1,66 @@
+#  This file describes configuration details for executing the Unet architecture on the example dataset.
+
+
+# Name of this specific experiment
+experiment.name:
+  value: soft-labeling-blur-5 (Hard Labels)
+# Seed of this experiment to ensure reproducibility.
+experiment.seed:
+  value: 1337
+
+# Model Configuration
+model.name:
+  value: UnetSupervised
+model.params.input_channels:
+  value: 3
+model.params.n_classes:
+  value: 1
+model.loss_fcn:
+  value: DiceLoss
+
+# Optimizer
+model.optimizer.type:
+  value: Adam
+model.optimizer.params.lr:
+  value: 0.0001
+model.optimizer.params.params:
+  value: UnetSupervised
+
+# Trainer Configuration
+train.trainer.max_epochs:
+  value: 500
+train.trainer.num_sanity_val_steps:
+  value: 0
+train.trainer.gpus:
+  value: 1
+train.trainer.reload_dataloaders_every_epoch:
+  value: false
+
+# Data Configuration
+data.datamodule.name:
+  value: SoftLabelDataModule
+data.datamodule.arguments.root_dir:
+  value: /home/ws/nd6488/lsdf/iai-aida/Daten_Rettenberger/datasets/synth_soft_labels/synth_soft_label_dataset_blur_5
+data.datamodule.arguments.n_classes:
+  value: 1
+data.datamodule.arguments.val_to_train_ratio:
+  value: 0.2
+data.datamodule.arguments.batch_size:
+  value: 16
+data.datamodule.arguments.hard_labeling:
+  value: true
+
+
+# Callbacks Configuration
+train.callbacks.save_k_top_models:
+  value: 1
+
+#  Augmentations
+data.img_processing.img_size:
+  value: [512, 512]
+data.img_processing.img_type:
+  value: rgb_8_bit
+data.img_processing.replay_processing_pipeline:
+  value: False
+data.img_processing.aug_flip_prob:
+  value: 0.5
