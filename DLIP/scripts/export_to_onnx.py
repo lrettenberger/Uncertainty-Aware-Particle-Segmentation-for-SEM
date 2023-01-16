@@ -1,8 +1,10 @@
 import os
 import wandb
 import logging
+import tifffile
+import numpy as np
 from pytorch_lightning.utilities.seed import seed_everything
-
+import cv2
 from DLIP.utils.loading.initialize_wandb import initialize_wandb
 from DLIP.utils.loading.load_data_module import load_data_module
 from DLIP.utils.loading.load_model import load_model
@@ -19,6 +21,9 @@ logging.basicConfig(level=logging.INFO)
 logging.info("Initalizing model")
 
 config_files, result_dir = parse_arguments()
+
+#config_files = '/home/ws/kg2371/projects/sem-segmentation/DLIP/experiments/configurations/inst_seg_20.yaml'
+#result_dir = './results'
 
 cfg_yaml = merge_configs(config_files)
 
@@ -46,10 +51,11 @@ parameters_splitted = split_parameters(config, ["model", "train", "data"])
 
 model = load_model(parameters_splitted["model"])
 
-w = torch.load('/home/ws/kg2371/projects/sem-segmentation/results/first-shot/GenericSegmentationDataModule/UnetSemantic/0077/results/first-shot/GenericSegmentationDataModule/UnetSemantic/0001/dnn_weights.ckpt')
+w = torch.load('/home/ws/kg2371/projects/sem-segmentation/results/first-shot/GenericSegmentationDataModule/UnetInstance/0049/dnn_weights.ckpt')
 model.load_state_dict(w['state_dict'])
 
-x = torch.randn(1, 1, 256, 256, requires_grad=True)
+x = torch.randn(1, 1, 1024, 1024, requires_grad=True)
+x = torch.tensor(cv2.resize(tifffile.imread('/home/ws/kg2371/datasets/sem_segmentation_cleaned_round_3/test/samples/134_Round-3.tif').astype(np.float32)/255,(1024,1024),interpolation=cv2.INTER_NEAREST), requires_grad=True).unsqueeze(0).unsqueeze(0)
 # Export the model
 torch.onnx.export(model, 
                   x,                         # model input (or a tuple for multiple inputs)

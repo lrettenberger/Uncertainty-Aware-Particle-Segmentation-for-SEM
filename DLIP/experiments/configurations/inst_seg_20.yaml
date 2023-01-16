@@ -19,7 +19,7 @@ wandb.tags:
 # offline = runs in offline mode, writes all data to disk for later syncing to a server.
 # disabled = makes all calls to wandb api's noop's.
 wandb.mode:
-  value: disabled
+  value: online
 
 experiment.name:
   value: first-shot
@@ -52,24 +52,24 @@ model.params.ae_mode:
   value: false
 model.loss_fcn:
   value: SmoothL1Loss
+model.loss_fcn.params.reduction:
+  value: none
 
 # Post-Processing Distance Maps
 model.params.post_pro.th_cell:
-  value: 0.04
+  value: 0.022
 model.params.post_pro.th_seed:
-  value: 0.4
+  value: 0.25
 model.params.post_pro.do_splitting:
   value: false
 model.params.post_pro.do_fill_holes:
   value: false
-
 model.params.post_pro.sigma_cell:
   value: 1.00
 model.params.post_pro.do_area_based_filtering:
   value: false
 model.params.post_pro.valid_area_median_factors:
   value: [0.25,3]
-
 
 # Optimizer
 model.optimizer.type:
@@ -125,8 +125,10 @@ data.datamodule.arguments.binarize_labels:
 data.datamodule.arguments.sample_filter:
   value: [Round-2,Negative,Positive]
 data.datamodule.arguments.class_dir:
-  #value: [dist_maps_filtered_20_percent,labels_filtered_20_percent]
-  value: [dist_maps,labels]
+  value: [dist_maps_filtered_20_percent,labels_filtered_20_percent]
+  #value: [dist_maps,labels]
+data.datamodule.arguments.return_weight_maps:
+  value: true
 
 # Callbacks Configuration
 train.callbacks.save_k_top_models:
@@ -169,24 +171,63 @@ data.img_processing.aug1.replay_processing_pipeline:
   value: false
 
 data.img_processing.aug1.aug_flip_prob:
-  value: 0.08731733426547172
-data.img_processing.aug1.aug_rand_brightness_contrast_brightness_limit:
-  value: 0.16914596393252826
-data.img_processing.aug1.aug_rand_brightness_contrast_contrast_limit:
-  value: 0.13327569684844362
-data.img_processing.aug1.aug_rand_brightness_contrast_prob:
-  value: 0.029983942879529435
-data.img_processing.aug1.aug_shift_scale_rotate_prob:
-  value: 0.4634574385660715
-data.img_processing.aug1.aug_shift_scale_rotate_rot_lim:
-  value: 30
-data.img_processing.aug1.aug_shift_scale_rotate_scale_lim:
-  value: 0.0
-data.img_processing.aug1.aug_shift_scale_rotate_shift_lim:
-  value: 0.17381688199490056
+  value: 0.5
+
 data.img_processing.aug1.gaussian_blur_prop:
-  value: 0.0
-data.img_processing.aug1.gaussian_blur_sigma:
-  value: [0.1, 1.0]
+  value: 0.9587364413868223
+data.img_processing.aug1.gaussian_blur_sigma_limit:
+  value: 2
+
+data.img_processing.aug1.gray_image_prop:
+  value: 0.17197850305105689
+data.img_processing.aug1.gray_image_alpha:
+  value: 0.15609421873045176
+
+
+data.img_processing.aug1.aug_rand_brightness_contrast_prob:
+  value: 0.18047366255758765
+data.img_processing.aug1.aug_rand_brightness_contrast_brightness_limit:
+  value: 0.03967129524285001
+data.img_processing.aug1.aug_rand_brightness_contrast_contrast_limit:
+  value: 0.28372331092795444
+
+
+data.img_processing.aug1.aug_shift_scale_rotate_prob:
+  value: 0.1018021863372882
+data.img_processing.aug1.aug_shift_scale_rotate_rot_lim:
+  value: 18
+data.img_processing.aug1.aug_shift_scale_rotate_scale_lim:
+  value: 0.3176050167305107
+data.img_processing.aug1.aug_shift_scale_rotate_shift_lim:
+  value: 0.05278526971985506
+
+
+
 data.img_processing.aug1.replay_processing_pipeline:
   value: False
+
+
+
+
+# data.img_processing.aug1.aug_flip_prob:
+#   value: 0.08731733426547172
+# data.img_processing.aug1.aug_rand_brightness_contrast_brightness_limit:
+#   value: [0.16914596393252826,0.16914596393252826]
+# data.img_processing.aug1.aug_rand_brightness_contrast_contrast_limit:
+#   value: [0.13327569684844362,0.13327569684844362]
+# data.img_processing.aug1.aug_rand_brightness_contrast_prob:
+#   value: 0.029983942879529435
+# data.img_processing.aug1.aug_shift_scale_rotate_prob:
+#   value: 0.4634574385660715
+# data.img_processing.aug1.aug_shift_scale_rotate_rot_lim:
+#   value: [30,30]
+# data.img_processing.aug1.aug_shift_scale_rotate_scale_lim:
+#   value: 0.0
+# data.img_processing.aug1.aug_shift_scale_rotate_shift_lim:
+#   value: [0.17381688199490056,0.17381688199490056]
+# data.img_processing.aug1.gaussian_blur_prop:
+#   value: 0.0
+# data.img_processing.aug1.gaussian_blur_sigma:
+#   value: [0.1, 1.0]
+# data.img_processing.aug1.replay_processing_pipeline:
+#   value: False

@@ -25,7 +25,10 @@ class BaseSegmentationDataset(BaseDataset):
         return_trafos=False,
         label_transform: Callable = None,
         binarize_labels=False,
+        return_weight_maps=False
     ):
+        self.return_weight_maps = return_weight_maps
+        self.empty_dataset = empty_dataset
         self.sample_filter = sample_filter
         self.labels_available = labels_available
         self.root_dir = root_dir
@@ -48,7 +51,10 @@ class BaseSegmentationDataset(BaseDataset):
 
 
         self.samples = os.path.join(self.root_dir,self.samples_dir)
-        self.labels  = os.path.join(self.root_dir,self.class_dir)
+        if isinstance(self.class_dir,str):
+            self.labels  = os.path.join(self.root_dir,self.class_dir)
+        else:
+            self.labels = [os.path.join(self.root_dir,x) for x in self.class_dir]
 
         # Get all sample names sorted as integer values
         all_samples_sorted = sorted(
@@ -66,14 +72,6 @@ class BaseSegmentationDataset(BaseDataset):
                 i.split(f"{self.samples}{os.path.sep}")[1].split(f".{samples_data_format}")[0]
                 for i in all_samples_sorted
             ]
-        
-        if 'test' not in self.root_dir:
-            self.indices_filtered = []
-            for ind in self.indices:
-                for clazz in self.sample_filter:
-                    if clazz in ind:
-                        self.indices_filtered.append(ind)
-            self.indices = self.indices_filtered
         self.raw_mode = False
 
     def __len__(self):
@@ -84,17 +82,38 @@ class BaseSegmentationDataset(BaseDataset):
         sample_path = os.path.join(self.samples, f"{self.indices[idx]}.{self.samples_data_format}")
         sample_img = tifffile.imread(sample_path) if self.samples_data_format=="tif" else cv2.imread(sample_path,-1)
 
+        #weight_map_path = sample_path.replace(self.samples_dir,'weight_maps')
+        weight_map_path = sample_path.replace(self.samples_dir,'weight_maps_filtered_20_percent')
+        weight_map = tifffile.imread(weight_map_path) if self.samples_data_format=="tif" else cv2.imread(weight_map_path,-1)
+
         sample_img_lst = []
-        label_lst = []
-        trafo_lst = []
+        weight_map_lst = []
+        if isinstance(self.labels,str):
+            label_lst = []
+            trafo_lst = []
+        elif isinstance(self.labels,list):
+            label_lst = [[] for x in range(len(self.labels))]
+            trafo_lst = [[] for x in range(len(self.labels))]
+        else:
+            raise ValueError('Cant load labels..')
 
         if self.labels_available:
             # load label map
-            label_path = os.path.join(self.labels, f"{self.indices[idx]}.{self.labels_data_format}")
-            label_img = tifffile.imread(label_path) if self.labels_data_format=="tif" else cv2.imread(label_path,-1)
-            label_one_hot = label_img
-            if self.label_transform is not None:
-                label_one_hot = self.label_transform(label_one_hot)
+            if isinstance(self.labels,str):
+                label_path = os.path.join(self.labels, f"{self.indices[idx]}.{self.labels_data_format}")
+                label_img = tifffile.imread(label_path) if self.labels_data_format=="tif" else cv2.imread(label_path,-1)
+                label_one_hot = label_img
+                if self.label_transform is not None:
+                    label_one_hot = self.label_transform(label_one_hot)
+            elif isinstance(self.labels,list):
+                label_one_hot = list()
+                for label_p in self.labels:
+                    label_path = os.path.join(label_p, f"{self.indices[idx]}.{self.labels_data_format}")
+                    label_img = tifffile.imread(label_path) if self.labels_data_format=="tif" else cv2.imread(label_path,-1)
+                    lbl_one_hot = label_img
+                    if self.label_transform is not None:
+                        lbl_one_hot = self.label_transform(lbl_one_hot)
+                    label_one_hot.append(lbl_one_hot)
 
         # raw mode -> no transforms
         if self.raw_mode:
@@ -102,18 +121,44 @@ class BaseSegmentationDataset(BaseDataset):
                 return sample_img,label_one_hot
             else:
                 return sample_img
+        
+        if isinstance(label_one_hot,str):
+            for transform in self.transforms:
+                random.seed(self.internal_seed)
+                im, lbl, trafo = transform(sample_img, label_one_hot)
+                sample_img_lst.append(im)
+                label_lst.append(lbl)
+                trafo_lst.append(trafo)
+                random.seed(self.internal_seed)
+                _, lbl, _ = transform(sample_img, weight_map)
+                weight_map_lst.append(lbl)
+                self.internal_seed+=1
+        elif isinstance(self.labels,list):
+            for transform in self.transforms:
+                random.seed(self.internal_seed)
+                im, lbl, trafo = transform(sample_img, label_one_hot[0])
+                sample_img_lst.append(im)
+                label_lst[0].append(lbl)
+                trafo_lst.append(trafo)
+                random.seed(self.internal_seed)
+                _, lbl, _ = transform(sample_img, weight_map)
+                weight_map_lst.append(lbl)
+                for i in range(1,len(label_one_hot)):
+                    lbl_one_hot = label_one_hot[i]
+                    random.seed(self.internal_seed)
+                    im, lbl, trafo = transform(sample_img, lbl_one_hot)
+                    label_lst[i].append(lbl)
+                self.internal_seed+=1
             
-        for transform in self.transforms:
-            random.seed(self.internal_seed)
-            im, lbl, trafo = transform(sample_img, label_one_hot)
-            self.internal_seed+=1
-            sample_img_lst.append(im)
-            label_lst.append(lbl)
-            trafo_lst.append(trafo)
 
         if len(sample_img_lst) == 1:
             sample_img_lst = sample_img_lst[0]
-            label_lst = label_lst[0] if len(label_lst) > 0 else label_lst
+            weight_map_lst = weight_map_lst[0]
+            if isinstance(label_one_hot,str):
+                label_lst = label_lst[0].unsqueeze(2) if len(label_lst) > 0 else label_lst
+            if isinstance(label_one_hot,list):
+                for i in range(len(label_lst)):
+                    label_lst[i] = label_lst[i][0].unsqueeze(2)
             trafo_lst = trafo_lst[0] if len(trafo_lst) > 0 else trafo_lst
        
         # sample_img_lst (optional: labels) (optional: trafos)
@@ -121,10 +166,10 @@ class BaseSegmentationDataset(BaseDataset):
             return sample_img_lst
         if self.return_trafos and not self.labels_available:
             return sample_img_lst, trafo_lst
-        if not self.return_trafos and self.labels_available:
-            if self.binarize_labels:
-                return sample_img_lst, ((label_lst > 0)*1).unsqueeze(2)
-            return sample_img_lst, label_lst.unsqueeze(2)
+        if not self.return_trafos and self.labels_available and not self.return_weight_maps:
+            return sample_img_lst, label_lst
+        if not self.return_trafos and self.labels_available and self.return_weight_maps:
+            return sample_img_lst, label_lst, weight_map_lst
         if self.return_trafos and self.labels_available:
             return sample_img_lst, label_lst, trafo_lst
 

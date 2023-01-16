@@ -5,6 +5,32 @@ import numpy as np
 
 from DLIP.utils.data_preparation.norm_std_mean import norm_std_mean
 
+from albumentations.core.transforms_interface import ImageOnlyTransform,to_tuple
+
+class GreyImage(ImageOnlyTransform):
+    
+    def __init__(self, alpha=0.5, always_apply=False, p=0.5):
+            super(GreyImage, self).__init__(always_apply=always_apply,p=p)
+            if isinstance(alpha, (int, float)):
+                self.alpha = tuple((0.0,alpha))
+            elif isinstance(alpha, (list, tuple)):
+                self.alpha = alpha
+            else:
+                raise Exception('Error in GreyImage: alpha needs to be list,tuple, or scalar.')
+
+    def apply(self, img, **params):
+        set_alpha = np.random.uniform(self.alpha[0],self.alpha[1])
+        return ((img * (1-set_alpha)) + (125 * (set_alpha))).astype(np.uint8)
+
+    def apply_to_bbox(self, bbox, **params):
+        raise Exception('not implemented')
+
+    def apply_to_keypoint(self, keypoint, **params):
+         raise Exception('not implemented')
+
+    def get_transform_init_args_names(self):
+        return ("alpha")
+
 
 def list_transform(argument):
     return list(argument) if isinstance(argument,np.ndarray) else argument
@@ -82,7 +108,7 @@ class ImgSegProcessingPipeline:
                 enabled=False
             if enabled:
                 transform.append(
-                    A.Emboss(
+                    A.IAAEmboss(
                         alpha=params.emboss_alpha,
                         p=params.emboss_prob,
                         strength=list_transform(params.emboss_strength)
@@ -159,8 +185,8 @@ class ImgSegProcessingPipeline:
                     )
 
         if  hasattr(params, 'gaussian_blur_prop') and \
-            hasattr(params, 'gaussian_blur_kernel_size') and \
-            hasattr(params, 'std_dev_range'):
+            hasattr(params, 'gaussian_blur_sigma_limit'):
+            #hasattr(params, 'std_dev_range')
                 enabled=True
                 if hasattr(params,'gaussian_blur_enabled') and not params.gaussian_blur_enabled:
                     enabled=False
@@ -168,10 +194,19 @@ class ImgSegProcessingPipeline:
                     transform.append(
                         A.GaussianBlur(
                             p=params.gaussian_blur_prop,
-                            blur_limit = tuple(params.gaussian_blur_kernel_size),
-                            sigma_limit=tuple(params.std_dev_range)
+                            blur_limit = 0,
+                            sigma_limit=params.gaussian_blur_sigma_limit
                         )
-                    )   
+                    )  
+                    
+        if  hasattr(params, 'gray_image_alpha') and \
+            hasattr(params, 'gray_image_prop'):
+                transform.append(
+                    GreyImage(
+                        p=params.gray_image_prop,
+                        alpha=params.gray_image_alpha,
+                    )
+                )  
 
         if  hasattr(params, 'to_gray_prob'):
                 enabled=True

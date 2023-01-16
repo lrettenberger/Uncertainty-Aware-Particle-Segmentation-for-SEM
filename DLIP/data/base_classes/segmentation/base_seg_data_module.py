@@ -29,6 +29,7 @@ class GenericSegmentationDataModule(BasePLDataModule):
         drop_last=False,
         class_dir='labels',
         binarize_labels = False,
+        return_weight_maps=False
     ):
         super().__init__(
             dataset_size=dataset_size,
@@ -40,6 +41,7 @@ class GenericSegmentationDataModule(BasePLDataModule):
             drop_last = drop_last,
             initial_labeled_ratio = initial_labeled_ratio,
         )
+        self.return_weight_maps = return_weight_maps
         self.root_dir = root_dir
         self.train_labeled_root_dir     = os.path.join(self.root_dir, "train")
         self.train_unlabeled_root_dir   = os.path.join(self.root_dir, "unlabeled")
@@ -73,21 +75,37 @@ class GenericSegmentationDataModule(BasePLDataModule):
             labels_data_format=self.labels_data_format,
             class_dir = self.class_dir,
             binarize_labels = self.binarize_labels,
+            return_weight_maps=self.return_weight_maps,
         )
 
         for _ in range(int(len(self.labeled_train_dataset) * (1 - self.dataset_size))):
             self.labeled_train_dataset.pop_sample(random.randrange(len(self.labeled_train_dataset)))
+            
+        
+        if os.path.exists(os.path.join(self.root_dir,'val')):
+            self.val_dataset = BaseSegmentationDataset(
+                sample_filter = self.sample_filter,
+                root_dir=os.path.join(self.root_dir,'val'), 
+                transforms=self.val_transforms,
+                samples_data_format=self.samples_data_format,
+                labels_data_format=self.labels_data_format,
+                class_dir = self.class_dir,
+                binarize_labels = self.binarize_labels,
+                return_weight_maps=self.return_weight_maps,
+            )
+        else:
+            self.val_dataset = BaseSegmentationDataset(
+                sample_filter = self.sample_filter,
+                root_dir=self.train_labeled_root_dir, 
+                transforms=self.val_transforms,
+                empty_dataset=True,
+                samples_data_format=self.samples_data_format,
+                labels_data_format=self.labels_data_format,
+                class_dir = self.class_dir,
+                binarize_labels = self.binarize_labels,
+                return_weight_maps=self.return_weight_maps,
+            )
 
-        self.val_dataset = BaseSegmentationDataset(
-            sample_filter = self.sample_filter,
-            root_dir=self.train_labeled_root_dir, 
-            transforms=self.val_transforms,
-            empty_dataset=True,
-            samples_data_format=self.samples_data_format,
-            labels_data_format=self.labels_data_format,
-            class_dir = self.class_dir,
-            binarize_labels = self.binarize_labels,
-        )
 
         self.unlabeled_train_dataset = BaseSegmentationDataset(
             sample_filter = self.sample_filter,
@@ -99,6 +117,7 @@ class GenericSegmentationDataModule(BasePLDataModule):
             labels_data_format=self.labels_data_format,
             class_dir = self.class_dir,
             binarize_labels = self.binarize_labels,
+            return_weight_maps=self.return_weight_maps,
         )
         
         self.test_dataset = BaseSegmentationDataset(
@@ -109,6 +128,7 @@ class GenericSegmentationDataModule(BasePLDataModule):
             labels_data_format=self.labels_data_format,
             class_dir = self.class_dir,
             binarize_labels = self.binarize_labels,
+            return_weight_maps=self.return_weight_maps,
         )
 
     def _determine_data_format(self):
@@ -143,6 +163,8 @@ class GenericSegmentationDataModule(BasePLDataModule):
         return map_look_up
     
     def init_val_dataset(self, split_lst=None):
+        if not self.val_dataset.empty_dataset:
+            return
         if len(self.labeled_train_dataset)>0:
             # default init is random
             if split_lst is None:

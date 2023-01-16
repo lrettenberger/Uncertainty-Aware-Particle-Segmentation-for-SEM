@@ -44,7 +44,12 @@ class Up(nn.Module):
 
             x1 = F.pad(
                 x1,
-                [diff_x // 2, diff_x - diff_x // 2, diff_y // 2, diff_y - diff_y // 2],
+                [       
+                    torch.div(diff_x, 2, rounding_mode='floor'),
+                    torch.div(diff_x - diff_x, 2, rounding_mode='floor'),
+                    torch.div(diff_y, 2, rounding_mode='floor'),
+                    torch.div(diff_y - diff_y , 2, rounding_mode='floor'),
+                ]
             )
             x = torch.cat([x2, x1], dim=1)
         return self.conv(x)

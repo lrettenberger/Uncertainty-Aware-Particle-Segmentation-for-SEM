@@ -1,3 +1,15 @@
+
+# ignore berkeley exporrs
+export_berkeley/
+
+*.ckpt
+
+results_export/
+
+*.txt
+*.zip
+*.onnx
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
