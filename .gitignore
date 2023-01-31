@@ -1,6 +1,5 @@
 
-# ignore berkeley exporrs
-export_berkeley/
+
 
 *.ckpt
 
