@@ -1,0 +1,14 @@
+name: sem-instance-segmentation
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.8.15
+  - tifffile==2021.11.2
+  - onnxruntime==1.13.1
+  - opencv==4.2.0
+  - numpy==1.23.0
+  - tqdm==4.59.0
+  - scipy==1.7.1
+  - scikit-image==0.18.3
+  - scikit-learn==1.0.1
