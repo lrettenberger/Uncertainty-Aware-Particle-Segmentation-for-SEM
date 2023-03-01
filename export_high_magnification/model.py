@@ -3,13 +3,18 @@ import cv2
 
 OVERLAPPING_THRESHOLD = 0.3
 MIN_ACTIVATION = 0.45
+# conf: lower_threshold = THRESHOLD_CONF, high_threshold = 1.0
+THRESHOLD_CONF = 0.9
+# not_conf: lower_threshold = THRESHOLD_NOT_CONF, high_threshold = THRESHOLD_CONF
+THRESHOLD_NOT_CONF = 0.55
 
-def post_process_preds(ort_outs,overlapping_threshold,min_activation):
+def post_process_preds(ort_outs,overlapping_threshold,min_activation,lower_threshold,high_threshold):
     scores = ort_outs[2]
     masks = ort_outs[3]
     score_threshold = 0.5
+    masks = masks[(scores > lower_threshold) & (scores <= high_threshold)]
     scores = scores[ort_outs[2] > score_threshold]
-    masks = masks[ort_outs[2] > score_threshold]
+    scores = scores[(scores > lower_threshold) & (scores <= high_threshold)]
     final_mask = np.zeros((1024, 1638), dtype=np.float32)
     local_instance_number = 1    
     for i in range(len(masks)):
@@ -37,8 +42,10 @@ def get_mask(x,ort_session):
     x = np.expand_dims(np.expand_dims(x.astype(np.float32)/255.,0),0)
     ort_inputs = {ort_session.get_inputs()[0].name: x}
     ort_outs = ort_session.run(None, ort_inputs)
-    preds = post_process_preds(ort_outs,OVERLAPPING_THRESHOLD,MIN_ACTIVATION)
-    return preds
+    preds_confident = post_process_preds(ort_outs,OVERLAPPING_THRESHOLD,MIN_ACTIVATION,THRESHOLD_CONF,1.0)
+    preds_not_confident = post_process_preds(ort_outs,OVERLAPPING_THRESHOLD,MIN_ACTIVATION,THRESHOLD_NOT_CONF,THRESHOLD_CONF)
+    preds_combined = post_process_preds(ort_outs,OVERLAPPING_THRESHOLD,MIN_ACTIVATION,THRESHOLD_NOT_CONF,1.0)
+    return preds_not_confident, preds_confident, preds_combined
 
 # adapted from https://github.com/obss/sahi/blob/e798c80d6e09079ae07a672c89732dd602fe9001/sahi/slicing.py#L30, MIT License
 def calculate_slice_bboxes(
@@ -93,5 +100,8 @@ def get_segmentation_mask(image,ort_session,patch_size=1024):
         padded_image = np.zeros((patch_size,patch_size))
         padded_image[:image.shape[0],:image.shape[1]] = image
         image = padded_image
-    mask = get_mask(image,ort_session).astype(np.int16)
-    return cv2.resize(mask,original_size[::-1], interpolation = cv2.INTER_NEAREST)
+    mask_not_confident, mask_confident, mask_combined = get_mask(image,ort_session)
+    mask_not_confident = cv2.resize(mask_not_confident.astype(np.int16),original_size[::-1], interpolation = cv2.INTER_NEAREST)
+    mask_confident = cv2.resize(mask_confident.astype(np.int16),original_size[::-1], interpolation = cv2.INTER_NEAREST)
+    mask_combined = cv2.resize(mask_combined.astype(np.int16),original_size[::-1], interpolation = cv2.INTER_NEAREST)
+    return mask_not_confident, mask_confident, mask_combined
