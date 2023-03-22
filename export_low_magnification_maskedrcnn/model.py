@@ -3,7 +3,8 @@ import cv2
 
 OVERLAPPING_THRESHOLD = 0.41
 MIN_ACTIVATION = 0.53
-THRESHOLD_CONF = 0.79
+THRESHOLD_CONF = 0.8
+MASK_FILTER_THRESHOLD = 0.005
 
 def post_process_preds(ort_outs,overlapping_threshold,min_activation,lower_threshold,high_threshold):
     scores = ort_outs[2]
@@ -14,7 +15,11 @@ def post_process_preds(ort_outs,overlapping_threshold,min_activation,lower_thres
     final_mask = np.zeros((H,W), dtype=np.float32)
     local_instance_number = 1    
     for i in range(len(masks)):
+        if scores[i] == 0:
+            continue
         for j in range(i+1, len(masks)):
+            if scores[j] == 0:
+                continue
             intersection = np.logical_and(masks[i], masks[j])
             union = np.logical_or(masks[i], masks[j])
             IOU_SCORE = np.sum(intersection) / np.sum(union)
@@ -27,11 +32,13 @@ def post_process_preds(ort_outs,overlapping_threshold,min_activation,lower_thres
             mask = mask.squeeze()
             mask[mask > min_activation] = local_instance_number
             mask[mask < min_activation] = 0
-            local_instance_number += 1
-            temp_filter_mask = np.where(final_mask > 1, 0., 1.)
-            temp_filter_mask = (final_mask < 1)*1.
-            mask = mask * temp_filter_mask        
-            final_mask += mask    
+            if np.sum(mask)/np.size(mask) > MASK_FILTER_THRESHOLD:
+                # only if the mask is big enough
+                local_instance_number += 1
+                temp_filter_mask = np.where(final_mask > 1, 0., 1.)
+                temp_filter_mask = (final_mask < 1)*1.
+                mask = mask * temp_filter_mask        
+                final_mask += mask   
     return final_mask
 
 def get_mask(x,ort_session):
@@ -42,9 +49,5 @@ def get_mask(x,ort_session):
     return preds
 
 def get_segmentation_mask(image,ort_session):
-    original_size = image.shape
-    # scale down
-    image = cv2.resize(image,(round(image.shape[1]*(1024/1200)),round(image.shape[0]*(1024/1200))), interpolation = cv2.INTER_NEAREST)
     mask = get_mask(image,ort_session)
-    mask = cv2.resize(mask.astype(np.int16),original_size[::-1], interpolation = cv2.INTER_NEAREST)
     return mask
