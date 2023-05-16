@@ -2,20 +2,30 @@ import numpy as np
 import cv2
 
 OVERLAPPING_THRESHOLD = 0.3
-MIN_ACTIVATION = 0.45
-# conf: lower_threshold = THRESHOLD_CONF, high_threshold = 1.0
-THRESHOLD_CONF = 0.9
-# not_conf: lower_threshold = THRESHOLD_NOT_CONF, high_threshold = THRESHOLD_CONF
-THRESHOLD_NOT_CONF = 0.55
+MIN_ACTIVATION = 0.40
+THRESHOLD_CONF = 0.95
+THRESHOLD_NOT_CONF = 0.6
+CONF_NOT_CONF_OVERLAP = 0.1
 
-def post_process_preds(ort_outs,overlapping_threshold,min_activation,lower_threshold,high_threshold):
+
+def conf_not_conf_exclusive(masks_conf,masks_not_conf):
+    for i in np.unique(masks_conf):
+        for j in np.unique(masks_not_conf):
+            if i==0 or j==0:
+                continue
+            intersection = np.logical_and((masks_conf==i)*1, (masks_not_conf==j)*1)
+            union = np.logical_or((masks_conf==i)*1, (masks_not_conf==j)*1)
+            IOU_SCORE = np.sum(intersection) / np.sum(union)
+            if IOU_SCORE >= CONF_NOT_CONF_OVERLAP:
+                masks_not_conf[masks_not_conf==j] = 0
+    return masks_conf,masks_not_conf
+
+def post_process_preds(ort_outs,lower_threshold,high_threshold,overlapping_threshold,min_activation,H,W):
     scores = ort_outs[2]
     masks = ort_outs[3]
-    score_threshold = 0.5
     masks = masks[(scores > lower_threshold) & (scores <= high_threshold)]
-    scores = scores[ort_outs[2] > score_threshold]
     scores = scores[(scores > lower_threshold) & (scores <= high_threshold)]
-    final_mask = np.zeros((1024, 1638), dtype=np.float32)
+    final_mask = np.zeros((H, W), dtype=np.float32)
     local_instance_number = 1    
     for i in range(len(masks)):
         for j in range(i+1, len(masks)):
@@ -29,22 +39,32 @@ def post_process_preds(ort_outs,overlapping_threshold,min_activation,lower_thres
             if score == 0:
                 continue        
             mask = mask.squeeze()
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (20, 20))
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=3)
             mask[mask > min_activation] = local_instance_number
             mask[mask < min_activation] = 0
-            local_instance_number += 1
-            temp_filter_mask = np.where(final_mask > 1, 0., 1.)
-            temp_filter_mask = (final_mask < 1)*1.
-            mask = mask * temp_filter_mask        
-            final_mask += mask    
+            if np.sum(mask) > 0:
+                local_instance_number += 1       
+                temp_filter_mask = np.where(final_mask > 1, 0., 1.)
+                temp_filter_mask = (final_mask < 1)*1.
+                mask = mask * temp_filter_mask        
+                final_mask += mask
     return final_mask
 
 def get_mask(x,ort_session):
     x = np.expand_dims(np.expand_dims(x.astype(np.float32)/255.,0),0)
     ort_inputs = {ort_session.get_inputs()[0].name: x}
     ort_outs = ort_session.run(None, ort_inputs)
-    preds_confident = post_process_preds(ort_outs,OVERLAPPING_THRESHOLD,MIN_ACTIVATION,THRESHOLD_CONF,1.0)
-    preds_not_confident = post_process_preds(ort_outs,OVERLAPPING_THRESHOLD,MIN_ACTIVATION,THRESHOLD_NOT_CONF,THRESHOLD_CONF)
-    preds_combined = post_process_preds(ort_outs,OVERLAPPING_THRESHOLD,MIN_ACTIVATION,THRESHOLD_NOT_CONF,1.0)
+    B,C,H,W = x.shape
+    preds_confident = post_process_preds(ort_outs,THRESHOLD_CONF,1.0,OVERLAPPING_THRESHOLD,MIN_ACTIVATION,H,W)
+    preds_not_confident = post_process_preds(ort_outs,THRESHOLD_NOT_CONF,THRESHOLD_CONF,OVERLAPPING_THRESHOLD,MIN_ACTIVATION,H,W)
+    preds_combined = post_process_preds(ort_outs,THRESHOLD_NOT_CONF,1.0,OVERLAPPING_THRESHOLD,MIN_ACTIVATION,H,W)
+    
+    for i in range(len(preds_confident)):
+        mask_conf_i, mask_not_conf_i = conf_not_conf_exclusive(preds_confident[i],preds_not_confident[i])
+        preds_confident[i] = mask_conf_i
+        preds_not_confident[i] = mask_not_conf_i
+    
     return preds_not_confident, preds_confident, preds_combined
 
 # adapted from https://github.com/obss/sahi/blob/e798c80d6e09079ae07a672c89732dd602fe9001/sahi/slicing.py#L30, MIT License
@@ -92,16 +112,10 @@ def calculate_slice_bboxes(
 
 
 def get_segmentation_mask(image,ort_session,patch_size=1024):
-    original_size = image.shape
-    # scale down
-    image = cv2.resize(image,(round(image.shape[1]*(1024/1200)),round(image.shape[0]*(1024/1200))), interpolation = cv2.INTER_NEAREST)
     if image.shape[0] < patch_size or image.shape[1] < patch_size:
         # pad image with zeros if its smaller than patch_size to be able to process it
         padded_image = np.zeros((patch_size,patch_size))
         padded_image[:image.shape[0],:image.shape[1]] = image
         image = padded_image
     mask_not_confident, mask_confident, mask_combined = get_mask(image,ort_session)
-    mask_not_confident = cv2.resize(mask_not_confident.astype(np.int16),original_size[::-1], interpolation = cv2.INTER_NEAREST)
-    mask_confident = cv2.resize(mask_confident.astype(np.int16),original_size[::-1], interpolation = cv2.INTER_NEAREST)
-    mask_combined = cv2.resize(mask_combined.astype(np.int16),original_size[::-1], interpolation = cv2.INTER_NEAREST)
     return mask_not_confident, mask_confident, mask_combined

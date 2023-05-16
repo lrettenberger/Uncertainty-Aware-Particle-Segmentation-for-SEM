@@ -16,7 +16,7 @@ from model import get_segmentation_mask
 # download model if its not present
 if not os.path.isfile("model_high_mag_maskedrcnn.onnx"):
     print('Downloading Model...')
-    urllib.request.urlretrieve("https://bwsyncandshare.kit.edu/s/NCC7bTSJ6dSfHgT/download/model_high_mag_maskedrcnn.onnx", "model_high_mag_maskedrcnn.onnx")
+    urllib.request.urlretrieve("https://bwsyncandshare.kit.edu/s/qLaboe98J9oZcst/download/model_high_mag_maskedrcnn.onnx", "model_high_mag_maskedrcnn.onnx")
 
 VALID_IMAGE_FORMATS = ['.png','.tiff','.tif']
 
