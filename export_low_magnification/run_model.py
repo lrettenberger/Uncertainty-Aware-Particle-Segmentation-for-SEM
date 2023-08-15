@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from glob import glob
 import numpy as np
+import tifffile
 
 from dist_map_post_processor import DistMapPostProcessor
 from utils import load_image_from_path, write_parameters_to_file
@@ -14,33 +15,21 @@ from inst_seg_contour import visualize_instances_map
 from model import get_segmentation_mask
 
 # download model if its not present
-print('Downloading Model...')
-urllib.request.urlretrieve("https://bwsyncandshare.kit.edu/s/pJpnCZFdF4CaS2w/download/model.onnx", "model.onnx")
-
+if not os.path.isfile("model_low_mag_maskedrcnn.onnx"):
+    print('Downloading Model...')
+    urllib.request.urlretrieve("https://bwsyncandshare.kit.edu/s/HTsRYizNFwaT3pk/download/model_low_mag_maskrcnn.onnx", "model_low_mag_maskedrcnn.onnx")
 
 VALID_IMAGE_FORMATS = ['.png','.tiff','.tif']
 
-# Instance segmentation post processing
-BLUR_KERNEL_SIZE = 9
-TH_CELL=0.022,
-TH_SEED=0.25,
-post_pro = DistMapPostProcessor(
-    sigma_cell=1.0,
-    th_cell=TH_CELL,
-    th_seed=TH_SEED,
-    do_splitting=False,
-    do_area_based_filtering=False,
-    do_fill_holes=False,
-    valid_area_median_factors=[0.25,3]
-)
 # The neural network
-ort_session = onnxruntime.InferenceSession("model.onnx", providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
+ort_session = onnxruntime.InferenceSession("model_low_mag_maskedrcnn.onnx", providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
 
 parser = argparse.ArgumentParser(description='Calculate Instance Segmentations to SEM Images.')
 parser.add_argument(
     '--input',
     dest='input',
     type=str,
+    # CHANGE BACK YO
     default='./images',
     help='If the path is an image, the image will be processed. If its a path, the whole directory will be processed.'
 )
@@ -65,19 +54,46 @@ for input_image_path in pbar:
     image = load_image_from_path(input_image_path)
 
     # Get segmentation mask (distance map)
-    mask = get_segmentation_mask(image,ort_session,BLUR_KERNEL_SIZE)
-    # Post process the distance map to obtain instance segmentations
-    # Each segment will be encoded with a integer value
-    inst_segmentations = post_pro.process(mask,None)
+    mask_not_confident, mask_confident, mask_combined = get_segmentation_mask(image,ort_session)
 
-    write_parameters_to_file(
-        inst_segmentations=inst_segmentations,
-        file_name=f"{output_path}/{image_name}_report.txt",
-        image_name= image_name,
-        image=image
-    )
-
+    # outputs for not confident
     # Visualize the results and export as an image
-    overlay = visualize_instances_map(cv2.cvtColor(image, cv2.COLOR_GRAY2RGB), inst_segmentations, line_thickness=5)
-    cv2.imwrite(f'{output_path}/{image_name.replace(".png","")}_overlay.png',overlay)
-    cv2.imwrite(f'{output_path}/{image_name.replace(".png","")}_uint16_instance_mask.png',inst_segmentations.astype(np.uint16))
+    overlay = visualize_instances_map(cv2.cvtColor(image, cv2.COLOR_GRAY2RGB), mask_not_confident, line_thickness=3)
+    # Resize all images to input image dimensions for writing
+    #cv2.imwrite(f'{output_path}/{image_name.replace(".png","")}_overlay_not_confident.png',overlay)
+    cv2.imwrite(f'{output_path}/{image_name.replace(".png","")}_uint16_instance_mask_not_confident.png',mask_not_confident.astype(np.int16)*(255/np.max(mask_not_confident)))
+    #tifffile.imwrite(f'{output_path}/{image_name.replace(".png","")}_uint16_instance_mask_not_confident.tiff',mask_not_confident.astype(np.int16))
+    # particle areas
+    f = open(f'{output_path}/{image_name.replace(".png","")}_particles_sizes.txt', "a")
+    f.write("Confidence,Index,Size_Pixels,Size_Microns\n")
+    for i in np.unique(mask_not_confident):
+        if i==0:
+            continue
+        area_pixels = (mask_not_confident==i).sum()
+        # we assume a size of 80x80 microns to 1024x1024 px
+        area_microns = area_pixels * (80/1024)
+        f.write(f"Unsure,{int(i)},{area_pixels:.2f},{area_microns:.2f}\n")
+
+    # outputs for confident
+    # Visualize the results and export as an image
+    overlay = visualize_instances_map(cv2.cvtColor(image, cv2.COLOR_GRAY2RGB), mask_confident, line_thickness=3)
+    # Resize all images to input image dimensions for writing
+    #cv2.imwrite(f'{output_path}/{image_name.replace(".png","")}_overlay_confident.png',overlay)
+    #tifffile.imwrite(f'{output_path}/{image_name.replace(".png","")}_uint16_instance_mask_confident.tiff',mask_confident.astype(np.int16))
+    cv2.imwrite(f'{output_path}/{image_name.replace(".png","")}_uint16_instance_mask_confident.png',mask_confident.astype(np.int16)*(255/np.max(mask_confident)))
+    for i in np.unique(mask_confident):
+        if i==0:
+            continue
+        area_pixels = (mask_confident==i).sum()
+        # we assume a size of 80x80 microns to 1024x1024 px
+        area_microns = area_pixels * (80/1024)
+        f.write(f"Sure,{int(i)},{area_pixels:.2f},{area_microns:.2f}\n")
+
+
+    # outputs for combined
+    # Visualize the results and export as an image
+    # overlay = visualize_instances_map(cv2.cvtColor(image, cv2.COLOR_GRAY2RGB), mask_combined, line_thickness=3)
+    # # Resize all images to input image dimensions for writing
+    # cv2.imwrite(f'{output_path}/{image_name.replace(".png","")}_overlay_combined.png',overlay)
+    # tifffile.imwrite(f'{output_path}/{image_name.replace(".png","")}_uint16_instance_mask_combined.tiff',mask_combined.astype(np.int16))
+    # f.close()
