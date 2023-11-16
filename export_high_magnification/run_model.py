@@ -50,69 +50,47 @@ for input_image_path in pbar:
 
     # Load image
     image = load_image_from_path(input_image_path)
-    # save orig size for output
-    original_size = image.shape
-    # low pass filter to get high frequencies smoothed out
-    kernel = np.ones((3,3),np.float32)/9
-    image = cv2.filter2D(image,-1,kernel)
-    # get to right dims
-    image = cv2.resize(image,(1920,1200),interpolation=cv2.INTER_NEAREST)
-    # Get resize factor, assuming that the image had a size of (resized_factor*1920,resize_factor*1200)
-    resize_factor = original_size[0]/image.shape[0]
-    # Get segmentation mask
+    # Get segmentation mask (distance map)
     mask_not_confident, mask_confident, mask_combined = get_segmentation_mask(image,ort_session)
-
-    write_parameters_to_file(
-        inst_segmentations=mask_not_confident,
-        file_name=f"{output_path}/{image_name}_report_not_confident.txt",
-        image_name= image_name,
-        image=image,
-        resize_factor=resize_factor
-    )
-
-    write_parameters_to_file(
-        inst_segmentations=mask_confident,
-        file_name=f"{output_path}/{image_name}_report_confident.txt",
-        image_name= image_name,
-        image=image,
-        resize_factor=resize_factor
-    )
-
-    write_parameters_to_file(
-        inst_segmentations=mask_combined,
-        file_name=f"{output_path}/{image_name}_report_combined.txt",
-        image_name= image_name,
-        image=image,
-        resize_factor=resize_factor
-    )
-
 
     # outputs for not confident
     # Visualize the results and export as an image
-    overlay = visualize_instances_map(cv2.cvtColor(image, cv2.COLOR_GRAY2RGB), mask_not_confident, line_thickness=3)
+    overlay = visualize_instances_map(cv2.cvtColor(image, cv2.COLOR_GRAY2RGB), mask_not_confident, line_thickness=8)
     # Resize all images to input image dimensions for writing
-    overlay = cv2.resize(overlay,original_size[::-1], interpolation = cv2.INTER_NEAREST)
-    mask_not_confident = cv2.resize(mask_not_confident,original_size[::-1], interpolation = cv2.INTER_NEAREST)
-    cv2.imwrite(f'{output_path}/{image_name.replace(".png","")}_overlay_not_confident.png',overlay)
-    tifffile.imwrite(f'{output_path}/{image_name.replace(".png","")}_uint16_instance_mask_not_confident.tiff',mask_not_confident.astype(np.int16))
-
+    #cv2.imwrite(f'{output_path}/{image_name.replace(".png","")}_overlay_not_confident.png',overlay)
+    cv2.imwrite(f'{output_path}/{image_name.replace(".png","")}_uint16_instance_mask_not_confident.png',mask_not_confident.astype(np.int16)*(255/np.max(mask_not_confident)))
+    #tifffile.imwrite(f'{output_path}/{image_name.replace(".png","")}_uint16_instance_mask_not_confident.tiff',mask_not_confident.astype(np.int16))
+    # particle areas
+    f = open(f'{output_path}/{image_name.replace(".png","")}_particles_sizes.txt', "a")
+    f.write("Confidence,Index,Size_Pixels,Size_Microns\n")
+    for i in np.unique(mask_not_confident):
+        if i==0:
+            continue
+        area_pixels = (mask_not_confident==i).sum()
+        # we assume a size of 80x80 microns to 1024x1024 px
+        area_microns = area_pixels * (80/1024)
+        f.write(f"Unsure,{int(i)},{area_pixels:.2f},{area_microns:.2f}\n")
 
     # outputs for confident
     # Visualize the results and export as an image
-    overlay = visualize_instances_map(cv2.cvtColor(image, cv2.COLOR_GRAY2RGB), mask_confident, line_thickness=3)
+    overlay = visualize_instances_map(cv2.cvtColor(image, cv2.COLOR_GRAY2RGB), mask_confident, line_thickness=8)
     # Resize all images to input image dimensions for writing
-    overlay = cv2.resize(overlay,original_size[::-1], interpolation = cv2.INTER_NEAREST)
-    mask_confident = cv2.resize(mask_confident,original_size[::-1], interpolation = cv2.INTER_NEAREST)
-    cv2.imwrite(f'{output_path}/{image_name.replace(".png","")}_overlay_confident.png',overlay)
-    tifffile.imwrite(f'{output_path}/{image_name.replace(".png","")}_uint16_instance_mask_confident.tiff',mask_confident.astype(np.int16))
+    #cv2.imwrite(f'{output_path}/{image_name.replace(".png","")}_overlay_confident.png',overlay)
+    #tifffile.imwrite(f'{output_path}/{image_name.replace(".png","")}_uint16_instance_mask_confident.tiff',mask_confident.astype(np.int16))
+    cv2.imwrite(f'{output_path}/{image_name.replace(".png","")}_uint16_instance_mask_confident.png',mask_confident.astype(np.int16)*(255/np.max(mask_confident)))
+    for i in np.unique(mask_confident):
+        if i==0:
+            continue
+        area_pixels = (mask_confident==i).sum()
+        # we assume a size of 80x80 microns to 1024x1024 px
+        area_microns = area_pixels * (80/1024)
+        f.write(f"Sure,{int(i)},{area_pixels:.2f},{area_microns:.2f}\n")
 
 
     # outputs for combined
     # Visualize the results and export as an image
-    overlay = visualize_instances_map(cv2.cvtColor(image, cv2.COLOR_GRAY2RGB), mask_combined, line_thickness=3)
+    overlay = visualize_instances_map(cv2.cvtColor(image, cv2.COLOR_GRAY2RGB), mask_combined, line_thickness=8)
     # Resize all images to input image dimensions for writing
-    overlay = cv2.resize(overlay,original_size[::-1], interpolation = cv2.INTER_NEAREST)
-    mask_combined = cv2.resize(mask_combined,original_size[::-1], interpolation = cv2.INTER_NEAREST)
     cv2.imwrite(f'{output_path}/{image_name.replace(".png","")}_overlay_combined.png',overlay)
     tifffile.imwrite(f'{output_path}/{image_name.replace(".png","")}_uint16_instance_mask_combined.tiff',mask_combined.astype(np.int16))
-
+    f.close()

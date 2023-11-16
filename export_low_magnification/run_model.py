@@ -17,7 +17,7 @@ from model import get_segmentation_mask
 # download model if its not present
 if not os.path.isfile("model_low_mag_maskedrcnn.onnx"):
     print('Downloading Model...')
-    urllib.request.urlretrieve("https://bwsyncandshare.kit.edu/s/HTsRYizNFwaT3pk/download/model_low_mag_maskrcnn.onnx", "model_low_mag_maskedrcnn.onnx")
+    urllib.request.urlretrieve("https://bwsyncandshare.kit.edu/s/o929J84orZr4N6t/download/model_low_mag_maskedrcnn.onnx", "model_low_mag_maskedrcnn.onnx")
 
 VALID_IMAGE_FORMATS = ['.png','.tiff','.tif']
 
@@ -29,8 +29,8 @@ parser.add_argument(
     '--input',
     dest='input',
     type=str,
-    # CHANGE BACK YO
-    default='./images',
+    # CHANGE BACK TO RELATIVE PATH
+    default='/home/ws/kg2371/projects/Machine-Learning-Particle-Morphology-Estimation/export_low_magnification/images',
     help='If the path is an image, the image will be processed. If its a path, the whole directory will be processed.'
 )
 args = parser.parse_args()
@@ -92,8 +92,8 @@ for input_image_path in pbar:
 
     # outputs for combined
     # Visualize the results and export as an image
-    # overlay = visualize_instances_map(cv2.cvtColor(image, cv2.COLOR_GRAY2RGB), mask_combined, line_thickness=3)
-    # # Resize all images to input image dimensions for writing
-    # cv2.imwrite(f'{output_path}/{image_name.replace(".png","")}_overlay_combined.png',overlay)
-    # tifffile.imwrite(f'{output_path}/{image_name.replace(".png","")}_uint16_instance_mask_combined.tiff',mask_combined.astype(np.int16))
-    # f.close()
+    overlay = visualize_instances_map(cv2.cvtColor(image, cv2.COLOR_GRAY2RGB), mask_combined, line_thickness=3)
+    # Resize all images to input image dimensions for writing
+    cv2.imwrite(f'{output_path}/{image_name.replace(".png","")}_overlay_combined.png',overlay)
+    tifffile.imwrite(f'{output_path}/{image_name.replace(".png","")}_uint16_instance_mask_combined.tiff',mask_combined.astype(np.int16))
+    f.close()

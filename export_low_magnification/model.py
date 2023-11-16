@@ -1,6 +1,8 @@
 import numpy as np
 import cv2
 
+IMG_SIZE = (1728,1080)
+
 MIN_ACTIVATION = 0.4148937301911166
 THRESHOLD_CONF = 0.7450274476935512
 THRESHOLD_NOT_CONF = 0.6997302456756461
@@ -103,8 +105,8 @@ def get_segmentation_mask(image,ort_session,patch_size=1024):
         padded_image = np.zeros((patch_size,patch_size))
         padded_image[:image.shape[0],:image.shape[1]] = image
         image = padded_image
-    mask_not_confident, mask_confident, mask_combined = get_mask(image,ort_session)
-    mask_not_confident = area_based_filtering(mask_not_confident)
-    mask_confident = area_based_filtering(mask_confident)
-    mask_combined = area_based_filtering(mask_combined)
+    mask_not_confident, mask_confident, mask_combined = get_mask(cv2.resize(image,IMG_SIZE,interpolation=cv2.INTER_LINEAR),ort_session)
+    mask_not_confident = area_based_filtering(cv2.resize(mask_not_confident,image.shape[::-1],interpolation=cv2.INTER_NEAREST))
+    mask_confident = area_based_filtering(cv2.resize(mask_confident,image.shape[::-1],interpolation=cv2.INTER_NEAREST))
+    mask_combined = area_based_filtering(cv2.resize(mask_combined,image.shape[::-1],interpolation=cv2.INTER_NEAREST))
     return mask_not_confident, mask_confident, mask_combined
