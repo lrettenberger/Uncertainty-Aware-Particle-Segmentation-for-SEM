@@ -1,8 +1,8 @@
 # Uncertainty Aware Particle Segmentation for SEM Data
 
-Repository for our [npj Computational Materials](https://www.nature.com/npjcompumats/) publication accessible at: XXX
-The data used in our publication can be downloaded here: [Uncertainty-Aware-Particle-Segmentation-for-SEM-Data](https://github.com/lrettenberger/Uncertainty-Aware-Particle-Segmentation-for-SEM-Data)
+Repository for our [npj Computational Materials](https://www.nature.com/npjcompumats/) publication accessible at: [https://www.nature.com/articles/s41524-024-01302-w](https://www.nature.com/articles/s41524-024-01302-w).
 
+The data used in our publication can be downloaded here: [Uncertainty-Aware-Particle-Segmentation-for-SEM-Data](https://github.com/lrettenberger/Uncertainty-Aware-Particle-Segmentation-for-SEM-Data).
 
 
 This repository contains two directories: **export_high_magnification** and **export_low_magnification**. We have discovered that the segmentation works best when distinguishing between high magnification scans and low magnification scans.
